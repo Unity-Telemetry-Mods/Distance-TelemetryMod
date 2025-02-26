@@ -12,9 +12,7 @@ using System;
 using System.Net;
 
 using TelemetryLib.Telemetry;
-
 using TelemetryLib;
-
 using UnityEngine;
 
 namespace com.drowhunter.DistanceTelemetryMod
@@ -23,8 +21,10 @@ namespace com.drowhunter.DistanceTelemetryMod
     public class DistanceTelemetryPlugin : BaseUnityPlugin
     {
         static ManualLogSource Log;
+        private ConfigEntry<int> Port;
 
-        
+        TelemetryExtractor telemetryExtractor;
+
         PlayerEvents playerEvents;
         DistanceTelemetryData data;
         
@@ -63,16 +63,15 @@ namespace com.drowhunter.DistanceTelemetryMod
 
         public static ConfigEntry<bool> MaxSteeringMod { get; set; }
 
-
+        private void Start()
+        {
+            telemetryExtractor = new TelemetryExtractor();
+        }
 
         private void Awake()
         {
-            //harmony.PatchAll();
-
             Log = Logger;
-
-
-
+            Port = Config.Bind("Telemetry", "UDP Port", 12345, "Port to Send Telemetry");
             Echo(nameof(Awake), string.Format("{0} {1} loaded.", MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION));
             ConfigDefinition configDefinition = new ConfigDefinition("General", "Max Steering Mod", "Set the steering angle to the maximum value");
             MaxSteeringMod = Config.Bind("General", "Max Steering Mod", false, "Set the steering angle to the maximum value");
@@ -82,9 +81,6 @@ namespace com.drowhunter.DistanceTelemetryMod
             {
                 SendAddress = new IPEndPoint(IPAddress.Loopback, 12345)
             });
-
-            
-           
 
         }
 
@@ -143,52 +139,33 @@ namespace com.drowhunter.DistanceTelemetryMod
             data.IsCarEnabled = car.ExistsAndIsEnabled();
 
             var cRigidbody = car.GetComponent<Rigidbody>();
+
+            telemetryExtractor.Update(cRigidbody);
+
+            var basic = telemetryExtractor.ExtractTelemetry(EulerType.Coaster);
+
+            data.Pitch = basic.EulerAngles.x; 
+            data.Yaw = basic.EulerAngles.y;  
+            data.Roll = basic.EulerAngles.z;
             
-            
-            
-            Quaternion rotation = cRigidbody.transform.rotation;
+            data.cForce = basic.CentripetalForce;
 
-            
-            
-            var localAngularVelocity = cRigidbody.transform.InverseTransformDirection(cRigidbody.angularVelocity);
-            var localVelocity = cRigidbody.transform.InverseTransformDirection(cRigidbody.velocity);            
+            data.AngularVelocityX = basic.LocalAngularVelocity.x;
+            data.AngularVelocityY = basic.LocalAngularVelocity.y;
+            data.AngularVelocityZ = basic.LocalAngularVelocity.z;
 
-            Vector3 accel = (localVelocity - previousLocalVelocity) / Time.fixedDeltaTime / 9.81f;
-            
-            _yaw += localAngularVelocity.y * Time.fixedDeltaTime;
+            data.VelocityX = basic.LocalVelocity.x;
+            data.VelocityY = basic.LocalVelocity.y;
+            data.VelocityZ = basic.LocalVelocity.z;
 
-
-            previousLocalVelocity = localVelocity;
-
-            var cForce = localVelocity.magnitude * localAngularVelocity.magnitude * Math.Sign(localAngularVelocity.y);
-
-
-
-            data.Yaw = Maths.HemiCircle(_yaw * Mathf.Rad2Deg % 360);
-
-            data.Pitch = Maths.CopySign(Vector3.Angle(new Vector3(cRigidbody.transform.forward.x, 0, cRigidbody.transform.forward.z), cRigidbody.transform.forward), cRigidbody.transform.forward.y);
-
-            data.Roll = Maths.CopySign(Vector3.Angle(new Vector3(cRigidbody.transform.right.x  , 0, cRigidbody.transform.right.z  ), cRigidbody.transform.right),   cRigidbody.transform.right.y);
+            data.AccelX = basic.Accel.x;
+            data.AccelY = basic.Accel.y;
+            data.AccelZ = basic.Accel.z;
 
 
             var car_logic = car.carLogic_;
 
             data.KPH = car_logic.CarStats_.GetKilometersPerHour();
-            
-            data.cForce = cForce;
-
-            data.AngularVelocityX = localAngularVelocity.x;
-            data.AngularVelocityY = localAngularVelocity.y;
-            data.AngularVelocityZ = localAngularVelocity.z;
-
-            data.VelocityX = localVelocity.x;
-            data.VelocityY = localVelocity.y;
-            data.VelocityZ = localVelocity.z;
-
-            data.AccelX = accel.x;
-            data.AccelY = accel.y;
-            data.AccelZ = accel.z;
-
 
             data.Boost = car_logic.CarDirectives_.Boost_;
             data.Grip = car_logic.CarDirectives_.Grip_;
@@ -198,16 +175,12 @@ namespace com.drowhunter.DistanceTelemetryMod
             data.AllWheelsOnGround = car_logic.CarStats_.AllWheelsContacting_;
             data.IsCarIsActive = car.isActiveAndEnabled;
             data.IsGrav = cRigidbody.useGravity;
-
-
             
 
             data.TireFL = CalcSuspension(car_logic.CarStats_.WheelFL_, 0.5f);
             data.TireFR = CalcSuspension(car_logic.CarStats_.WheelFR_, 0.5f);
             data.TireBL = CalcSuspension(car_logic.CarStats_.wheelBL_, grip: 0.2f);
             data.TireBR = CalcSuspension(car_logic.CarStats_.WheelBR_, grip: 0.2f);
-
-            
 
             data.IsCarDestroyed = carDestroyed;
 
@@ -216,8 +189,7 @@ namespace com.drowhunter.DistanceTelemetryMod
             data.OrientationZ = cRigidbody.transform.rotation.z;
             data.OrientationW = cRigidbody.transform.rotation.w;
 
-            udp.Send(data);
-            
+            udp.Send(data);           
 
             
 
@@ -227,11 +199,6 @@ namespace com.drowhunter.DistanceTelemetryMod
                 {
                     wheel.fullSteerAngle_ = maxAngle.Value;
                 }
-
-                //if (grip != null)
-                //{
-                //    wheel.grip_ = grip.Value;
-                //}
 
                 var pos = Math.Abs(wheel.hubTrans_.localPosition.y);
                 var suspension = wheel.SuspensionDistance_;

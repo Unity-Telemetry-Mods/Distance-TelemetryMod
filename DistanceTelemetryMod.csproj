@@ -3,8 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
     <AssemblyName>DistanceTelemetryMod</AssemblyName>
-    <Product>Distance Telemetry mod</Product>
-    <Version>1.5.4</Version>
+    <Product>Distance Telemetry Plugin</Product>
+    <Version>1.5.5</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>12.0</LangVersion>
     <RestoreAdditionalProjectSources>
@@ -26,8 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove=".gitignore" />
-    <None Remove="Directory.Build.targets" />
+    <None Remove=".git" />
+    <None Remove=".gitignore" />    
+    <None Remove="readme.md" />
   </ItemGroup>
 
   <ItemGroup>
@@ -43,11 +44,11 @@
   
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\UnityMods\distance-telemetry-mod\lib\Assembly-CSharp-publicized.dll</HintPath>
+      <HintPath>lib\Assembly-CSharp-publicized.dll</HintPath>
     </Reference>
-  </ItemGroup>
-  
-  <Import Project="..\TelemetryLib\TelemetryLib.projitems" Label="Shared" /> 
+  </ItemGroup>                      
+		
+  <Import Project="..\SharedLib\TelemetryLib.projitems" Label="Shared" /> 
   
   
  
